@@ -17,7 +17,7 @@ import java.util.Base64;
 
 public class HackathonPlatform implements Platform {
 
-    private static final String SERVER_URL = "https://hsbc.hackaton.page/backend";
+    private static final String SERVER_URL = "https://hsbc.redivivus.page/backend";
     private static final String PORTFOLIO_ENDPOINT = "/portfolio";
     private static final String BUY_ENDPOINT = "/buy";
     private static final String SELL_ENDPOINT = "/sell";
