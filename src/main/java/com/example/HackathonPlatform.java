@@ -1,12 +1,11 @@
 package com.example;
 
-import com.example.model.*;
+import com.example.model.rest.*;
 import com.example.model.security.Credentials;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.example.model.order.Instrument;
-import com.example.model.order.ValidatedOrder;
 
 import java.io.IOException;
 import java.net.URI;
@@ -46,7 +45,7 @@ public class HackathonPlatform implements Platform {
 
 
     @Override
-    public Portfolio portfolio() {
+    public PortfolioResponse portfolio() {
         try {
             final var request = builder
                     .uri(URI.create(SERVER_URL + PORTFOLIO_ENDPOINT))
@@ -54,19 +53,27 @@ public class HackathonPlatform implements Platform {
                     .build();
 
             final var response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-
             final var body = response.body();
-            return switch (response.statusCode()) {
-                case 200 -> objectMapper.readValue(body, Portfolio.Current.class);
-                default -> new Portfolio.Failed(body);
+            final var statusCode = response.statusCode();
+            return switch (statusCode) {
+                case 200 -> objectMapper.readValue(body, PortfolioResponse.Portfolio.class);
+                default -> new PortfolioResponse.Other(decode(statusCode, body));
             };
         } catch (IOException | InterruptedException e) {
-            return new Portfolio.Failed(e.getMessage());
+            return new PortfolioResponse.Other(new RestResponse.Failed(e));
         }
     }
 
+    private RestResponse decode(int statusCode, String body) throws JsonProcessingException {
+        return switch (statusCode) {
+            case 400 -> objectMapper.readValue(body, RestResponse.BadRequest.class);
+            case 401 -> new RestResponse.Unauthorized(body);
+            default -> new RestResponse.Unknown(statusCode, body);
+        };
+    }
+
     @Override
-    public ValidatedOrder buy(SubmitOrder.Buy buy) {
+    public SubmitOrderResponse buy(SubmitOrderRequest.Buy buy) {
         try {
             final var requestBody = writer.writeValueAsString(buy);
 
@@ -77,18 +84,19 @@ public class HackathonPlatform implements Platform {
 
             final var response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             final var body = response.body();
-            return switch (response.statusCode()) {
-                case 200 -> objectMapper.readValue(body, ValidatedOrder.Acknowledged.class);
-                case 400 -> objectMapper.readValue(body, ValidatedOrder.Rejected.class);
-                default -> new ValidatedOrder.Failed(body);
+            final var statusCode = response.statusCode();
+            return switch (statusCode) {
+                case 200 -> objectMapper.readValue(body, SubmitOrderResponse.Acknowledged.class);
+                case 400 -> objectMapper.readValue(body, SubmitOrderResponse.Rejected.class);
+                default -> new SubmitOrderResponse.Other(decode(statusCode, body));
             };
         } catch (IOException | InterruptedException e) {
-            return new ValidatedOrder.Failed(e.getMessage());
+            return new SubmitOrderResponse.Other(new RestResponse.Failed(e));
         }
     }
 
     @Override
-    public ValidatedOrder sell(SubmitOrder.Sell sell) {
+    public SubmitOrderResponse sell(SubmitOrderRequest.Sell sell) {
         try {
             final var requestBody = writer.writeValueAsString(sell);
 
@@ -99,20 +107,21 @@ public class HackathonPlatform implements Platform {
 
             final var response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             final var body = response.body();
-            return switch (response.statusCode()) {
-                case 200 -> objectMapper.readValue(body, ValidatedOrder.Acknowledged.class);
-                case 400 -> objectMapper.readValue(body, ValidatedOrder.Rejected.class);
-                default -> new ValidatedOrder.Failed(body);
+            final var statusCode = response.statusCode();
+            return switch (statusCode) {
+                case 200 -> objectMapper.readValue(body, SubmitOrderResponse.Acknowledged.class);
+                case 400 -> objectMapper.readValue(body, SubmitOrderResponse.Rejected.class);
+                default -> new SubmitOrderResponse.Other(decode(statusCode, body));
             };
         } catch (IOException | InterruptedException e) {
-            return new ValidatedOrder.Failed(e.getMessage());
+            return new SubmitOrderResponse.Other(new RestResponse.Failed(e));
         }
     }
 
     @Override
-    public History history(Instrument instrument) {
+    public HistoryResponse history(HistoryRequest historyRequest) {
         try {
-            final var requestBody = writer.writeValueAsString(new InstrumentHistory(instrument));
+            final var requestBody = writer.writeValueAsString(historyRequest);
 
             final var request = builder
                     .uri(URI.create(SERVER_URL + HISTORY_ENDPOINT))
@@ -121,19 +130,20 @@ public class HackathonPlatform implements Platform {
 
             final var response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             final var body = response.body();
-            return switch (response.statusCode()) {
-                case 200 -> objectMapper.readValue(body, History.Correct.class);
-                default -> new History.Failed(body);
+            final var statusCode = response.statusCode();
+            return switch (statusCode) {
+                case 200 -> objectMapper.readValue(body, HistoryResponse.History.class);
+                default -> new HistoryResponse.Other(decode(statusCode, body));
             };
         } catch (IOException | InterruptedException e) {
-            return new History.Failed(e.getMessage());
+            return new HistoryResponse.Other(new RestResponse.Failed(e));
         }
     }
 
     @Override
-    public Orders orders(Instrument instrument) {
+    public OrdersResponse orders(OrdersRequest ordersRequest) {
         try {
-            final var requestBody = writer.writeValueAsString(instrument);
+            final var requestBody = writer.writeValueAsString(ordersRequest);
 
             final var request = builder
                     .uri(URI.create(SERVER_URL + ORDERS_ENDPOINT))
@@ -142,17 +152,18 @@ public class HackathonPlatform implements Platform {
 
             final var response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             final var body = response.body();
-            return switch (response.statusCode()) {
-                case 200 -> objectMapper.readValue(body, Orders.Correct.class);
-                default -> new Orders.Failed(body);
+            final var statusCode = response.statusCode();
+            return switch (statusCode) {
+                case 200 -> objectMapper.readValue(body, OrdersResponse.Orders.class);
+                default -> new OrdersResponse.Other(decode(statusCode, body));
             };
         } catch (IOException | InterruptedException e) {
-            return new Orders.Failed(e.getMessage());
+            return new OrdersResponse.Other(new RestResponse.Failed(e));
         }
     }
 
     @Override
-    public Instruments instruments() {
+    public InstrumentsResponse instruments() {
         try {
             final var request = builder
                     .uri(URI.create(SERVER_URL + INSTRUMENTS_ENDPOINT))
@@ -161,17 +172,18 @@ public class HackathonPlatform implements Platform {
 
             final var response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             final var body = response.body();
-            return switch (response.statusCode()) {
-                case 200 -> objectMapper.readValue(body, Instruments.Correct.class);
-                default -> new Instruments.Failed(body);
+            final var statusCode = response.statusCode();
+            return switch (statusCode) {
+                case 200 -> objectMapper.readValue(body, InstrumentsResponse.Instruments.class);
+                default -> new InstrumentsResponse.Other(decode(statusCode, body));
             };
         } catch (IOException | InterruptedException e) {
-            return new Instruments.Failed(e.getMessage());
+            return new InstrumentsResponse.Other(new RestResponse.Failed(e));
         }
     }
 
     @Override
-    public Submitted submitted() {
+    public SubmittedResponse submitted() {
         try {
             final var request = builder
                     .uri(URI.create(SERVER_URL + SUBMITTED_ENDPOINT))
@@ -180,17 +192,18 @@ public class HackathonPlatform implements Platform {
 
             final var response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             final var body = response.body();
-            return switch (response.statusCode()) {
-                case 200 -> objectMapper.readValue(body, Submitted.Correct.class);
-                default -> new Submitted.Failed(body);
+            final var statusCode = response.statusCode();
+            return switch (statusCode) {
+                case 200 -> objectMapper.readValue(body, SubmittedResponse.Submitted.class);
+                default -> new SubmittedResponse.Other(decode(statusCode, body));
             };
         } catch (IOException | InterruptedException e) {
-            return new Submitted.Failed(e.getMessage());
+            return new SubmittedResponse.Other(new RestResponse.Failed(e));
         }
     }
 
     @Override
-    public Processed processed() {
+    public ProcessedResponse processed() {
         try {
             final var request = builder
                     .uri(URI.create(SERVER_URL + PROCESSED_ENDPOINT))
@@ -199,12 +212,13 @@ public class HackathonPlatform implements Platform {
 
             final var response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             final var body = response.body();
-            return switch (response.statusCode()) {
-                case 200 -> objectMapper.readValue(body, Processed.Correct.class);
-                default -> new Processed.Failed(body);
+            final var statusCode = response.statusCode();
+            return switch (statusCode) {
+                case 200 -> objectMapper.readValue(body, ProcessedResponse.Processed.class);
+                default -> new ProcessedResponse.Other(decode(statusCode, body));
             };
         } catch (IOException | InterruptedException e) {
-            return new Processed.Failed(e.getMessage());
+            return new ProcessedResponse.Other(new RestResponse.Failed(e));
         }
     }
 }

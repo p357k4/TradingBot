@@ -1,15 +1,11 @@
 package com.example;
 
-import com.example.model.History;
-import com.example.model.Instruments;
-import com.example.model.Portfolio;
-import com.example.model.SubmitOrder;
+import com.example.model.rest.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Random;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 public class OrdersController implements Runnable {
 
@@ -32,17 +28,17 @@ public class OrdersController implements Runnable {
         final var fetchedInstruments = marketPlugin.instruments();
         final var fetchedPortfolio = marketPlugin.portfolio();
 
-        if (fetchedPortfolio instanceof Portfolio.Failed failed) {
-            logger.error("portfolio call returned an error {}", failed);
+        if (fetchedPortfolio instanceof PortfolioResponse.Other other) {
+            logger.error("portfolio call does not return portfolio {}", other);
         }
 
-        if (fetchedPortfolio instanceof Portfolio.Current portfolio && fetchedInstruments instanceof Instruments.Correct instruments) {
+        if (fetchedPortfolio instanceof PortfolioResponse.Portfolio portfolio && fetchedInstruments instanceof InstrumentsResponse.Instruments instruments) {
             portfolio
                     .portfolio()
                     .stream()
-                    .map(Portfolio.PortfolioElement::instrument)
+                    .map(PortfolioResponse.Portfolio.Element::instrument)
                     .forEach( instrument -> {
-                        final var orders = marketPlugin.orders(instrument);
+                        final var orders = marketPlugin.orders(new OrdersRequest(instrument));
                         logger.info("instrument {} has orders {}", instrument, orders);
                     });
 
@@ -55,10 +51,10 @@ public class OrdersController implements Runnable {
             selectedForBuy
                     .stream()
                     .map(pe -> {
-                        final var history = marketPlugin.history(pe);
+                        final var history = marketPlugin.history(new HistoryRequest(pe));
 
                         long bid;
-                        if (history instanceof History.Correct correct) {
+                        if (history instanceof HistoryResponse.History correct) {
                             bid = (long) (
                                     1.1 * correct
                                             .bought()
@@ -72,7 +68,7 @@ public class OrdersController implements Runnable {
                         }
 
                         final var qty = rg.nextInt((int) (portfolio.cash() / 4 / bid));
-                        final var buy = new SubmitOrder.Buy(pe.symbol(), UUID.randomUUID().toString(), qty, bid);
+                        final var buy = new SubmitOrderRequest.Buy(pe.symbol(), UUID.randomUUID().toString(), qty, bid);
 
                         logger.info("order to submit {}", buy);
                         return buy;
@@ -90,10 +86,10 @@ public class OrdersController implements Runnable {
                     .stream()
                     .map(pe -> {
                         logger.info("portfolio element {}", pe);
-                        final var history = marketPlugin.history(pe.instrument());
+                        final var history = marketPlugin.history(new HistoryRequest(pe.instrument()));
 
                         long ask;
-                        if (history instanceof History.Correct correct) {
+                        if (history instanceof HistoryResponse.History correct) {
                             ask = (long) (
                                     0.9 * correct
                                             .bought()
@@ -107,7 +103,7 @@ public class OrdersController implements Runnable {
                         }
 
                         final long qty = Math.min(pe.qty(), minQty);
-                        final var sell = new SubmitOrder.Sell(pe.instrument().symbol(), UUID.randomUUID().toString(), qty, ask);
+                        final var sell = new SubmitOrderRequest.Sell(pe.instrument().symbol(), UUID.randomUUID().toString(), qty, ask);
 
                         logger.info("order to submit {}", sell);
                         return sell;

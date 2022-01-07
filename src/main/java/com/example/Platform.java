@@ -1,24 +1,22 @@
 package com.example;
 
-import com.example.model.*;
-import com.example.model.order.Instrument;
-import com.example.model.order.ValidatedOrder;
+import com.example.model.rest.*;
 
 public interface Platform {
 
-    Portfolio portfolio();
+    PortfolioResponse portfolio();
 
-    ValidatedOrder buy(SubmitOrder.Buy buyOrder);
+    SubmitOrderResponse buy(SubmitOrderRequest.Buy buyOrder);
 
-    ValidatedOrder sell(SubmitOrder.Sell sellOrder);
+    SubmitOrderResponse sell(SubmitOrderRequest.Sell sellOrder);
 
-    History history(Instrument instrument);
+    HistoryResponse history(HistoryRequest historyRequest);
 
-    Orders orders(Instrument instrument);
+    OrdersResponse orders(OrdersRequest ordersRequest);
 
-    Instruments instruments();
+    InstrumentsResponse instruments();
 
-    Submitted submitted();
+    SubmittedResponse submitted();
 
-    Processed processed();
+    ProcessedResponse processed();
 }
