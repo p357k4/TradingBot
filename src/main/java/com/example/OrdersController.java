@@ -15,32 +15,25 @@ public class OrdersController implements Runnable {
 
     private static final Logger logger = LoggerFactory.getLogger(OrdersController.class);
 
-    private final Platform marketPlugin;
+    private final Platform platform;
 
-    private final Random rg = new Random();
+    private static final Random rg = new Random();
 
-    public OrdersController(Platform marketPlugin) {
-        this.marketPlugin = marketPlugin;
+    public OrdersController(Platform platform) {
+        this.platform = platform;
     }
 
     @Override
     public void run() {
-        final var fetchedInstruments = marketPlugin.instruments();
-        final var fetchedPortfolio = marketPlugin.portfolio();
-
-        if (fetchedPortfolio instanceof PortfolioResponse.Other other) {
-            logger.error("portfolio call does not return portfolio {}", other);
-        }
+        final var fetchedInstruments = platform.instruments();
+        final var fetchedPortfolio = platform.portfolio();
 
         if (fetchedPortfolio instanceof PortfolioResponse.Portfolio portfolio && fetchedInstruments instanceof InstrumentsResponse.Instruments instruments) {
-            portfolio
-                    .portfolio()
-                    .stream()
-                    .map(PortfolioResponse.Portfolio.Element::instrument)
-                    .forEach( instrument -> {
-                        final var orders = marketPlugin.orders(new OrdersRequest(instrument));
-                        logger.info("instrument {} has orders {}", instrument, orders);
-                    });
+            for (final var element : portfolio.portfolio()) {
+                final var instrument = element.instrument();
+                final var orders = platform.orders(new OrdersRequest(instrument));
+                logger.info("instrument {} has orders {}", instrument, orders);
+            }
 
             final var selectedForBuy = instruments
                     .available()
@@ -48,68 +41,54 @@ public class OrdersController implements Runnable {
                     .filter(pe -> rg.nextDouble() < 0.10)
                     .toList();
 
-            selectedForBuy
-                    .stream()
-                    .map(pe -> {
-                        final var history = marketPlugin.history(new HistoryRequest(pe));
+            for (final var instrument : selectedForBuy) {
+                final var history = platform.history(new HistoryRequest(instrument));
 
-                        long bid;
-                        if (history instanceof HistoryResponse.History correct) {
-                            bid = (long) (
-                                    1.1 * correct
-                                            .bought()
-                                            .stream()
-                                            .mapToLong(b -> b.offer().price())
-                                            .average()
-                                            .orElse(minBid)
-                            );
-                        } else {
-                            bid = minBid;
-                        }
+                if (history instanceof HistoryResponse.History correct) {
+                    final long bid = (long) (
+                            1.1 * correct
+                                    .bought()
+                                    .stream()
+                                    .mapToLong(b -> b.offer().price())
+                                    .average()
+                                    .orElse(minBid)
+                    );
 
-                        final var qty = rg.nextInt((int) (portfolio.cash() / 4 / bid));
-                        final var buy = new SubmitOrderRequest.Buy(pe.symbol(), UUID.randomUUID().toString(), qty, bid);
+                    final var qty = rg.nextInt((int) (portfolio.cash() / 4 / bid));
+                    final var buyRequest = new SubmitOrderRequest.Buy(instrument.symbol(), UUID.randomUUID().toString(), qty, bid);
+                    final var orderResponse = platform.buy(buyRequest);
 
-                        logger.info("order to submit {}", buy);
-                        return buy;
-                    })
-                    .map(marketPlugin::buy)
-                    .forEach(vo -> logger.info("order placed with response {}", vo));
+                    logger.info("order {} placed with response {}", buyRequest, orderResponse);
+                }
+            }
 
-            final var selectedForSell = portfolio
+
+            final var selectedElementForSell = portfolio
                     .portfolio()
                     .stream()
                     .filter(pe -> rg.nextDouble() < 0.20)
                     .toList();
 
-            selectedForSell
-                    .stream()
-                    .map(pe -> {
-                        logger.info("portfolio element {}", pe);
-                        final var history = marketPlugin.history(new HistoryRequest(pe.instrument()));
+            for (final var element : selectedElementForSell) {
+                final var history = platform.history(new HistoryRequest(element.instrument()));
 
-                        long ask;
-                        if (history instanceof HistoryResponse.History correct) {
-                            ask = (long) (
-                                    0.9 * correct
-                                            .bought()
-                                            .stream()
-                                            .mapToLong(b -> b.offer().price())
-                                            .average()
-                                            .orElse(minAsk)
-                            );
-                        } else {
-                            ask = minAsk;
-                        }
+                if (history instanceof HistoryResponse.History correct) {
+                    final long ask = (long) (
+                            0.9 * correct
+                                    .bought()
+                                    .stream()
+                                    .mapToLong(b -> b.offer().price())
+                                    .average()
+                                    .orElse(minAsk)
+                    );
 
-                        final long qty = Math.min(pe.qty(), minQty);
-                        final var sell = new SubmitOrderRequest.Sell(pe.instrument().symbol(), UUID.randomUUID().toString(), qty, ask);
+                    final long qty = Math.min(element.qty(), minQty);
+                    final var sellRequest = new SubmitOrderRequest.Sell(element.instrument().symbol(), UUID.randomUUID().toString(), qty, ask);
+                    final var orderResponse = platform.sell(sellRequest);
 
-                        logger.info("order to submit {}", sell);
-                        return sell;
-                    })
-                    .map(marketPlugin::sell)
-                    .forEach(vo -> logger.info("order placed with response {}", vo));
+                    logger.info("order {} placed with response {}", sellRequest, orderResponse);
+                }
+            }
         }
     }
 }

@@ -20,16 +20,15 @@ public class TradingBot {
 
     private static final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) {
         logger.info("Starting the application");
         try (final var credentialsResource = TradingBot.class.getResourceAsStream("/credentials/default.json")) {
-            Credentials credentials = objectMapper.readValue(credentialsResource, Credentials.class);
-            Platform marketPlugin = new HackathonPlatform(credentials);
+            final var credentials = objectMapper.readValue(credentialsResource, Credentials.class);
+            final var marketPlugin = new HackathonPlatform(credentials);
 
-            OrdersController ordersController = new OrdersController(marketPlugin);
+            final var ordersController = new OrdersController(marketPlugin);
 
-            //ordersController.run();
-            ScheduledFuture<?> beeperHandle = scheduler.scheduleAtFixedRate(ordersController, 10, 60, SECONDS);
+            final var beeperHandle = scheduler.scheduleAtFixedRate(ordersController, 10, 60, SECONDS);
         } catch (Exception exception) {
             logger.error("Something bad happened", exception);
         }
