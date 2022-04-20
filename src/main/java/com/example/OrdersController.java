@@ -28,6 +28,14 @@ public class OrdersController implements Runnable {
         final var fetchedInstruments = platform.instruments();
         final var fetchedPortfolio = platform.portfolio();
 
+        if (fetchedPortfolio instanceof PortfolioResponse.Other other) {
+            logger.info("portfolio fetch failed {}", other);
+        }
+
+        if (fetchedInstruments instanceof InstrumentsResponse.Other other) {
+            logger.info("instruments fetch failed {}", other);
+        }
+
         if (fetchedPortfolio instanceof PortfolioResponse.Portfolio portfolio && fetchedInstruments instanceof InstrumentsResponse.Instruments instruments) {
             for (final var element : portfolio.portfolio()) {
                 final var instrument = element.instrument();
