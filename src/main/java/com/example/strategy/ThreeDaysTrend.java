@@ -34,7 +34,6 @@ public record ThreeDaysTrend(Platform platform) implements Runnable {
     private static final long minAsk = 13;
     private static final long minBid = 79;
     private static final Logger logger = LoggerFactory.getLogger(ThreeDaysTrend.class);
-    private static final Random random = new Random();
 
     @Override
     public void run() {
@@ -126,7 +125,7 @@ public record ThreeDaysTrend(Platform platform) implements Runnable {
     private static void requestBuy(Stats stats, PortfolioResponse.Portfolio portfolio, Platform platform) {
         logger.info(String.format("BUY %s: prediction=%s, delta=%s, A=%s", stats.instrumentSymbol, stats.prediction, stats.delta, stats.averages.toString()));
         final long bid = stats.averages.get(0).average.longValue();
-        final var qty = random.nextInt((int) (portfolio.cash() / 4 / bid));
+        final var qty = portfolio.cash() / 10 / bid;
         final var buyRequest = new SubmitOrderRequest.Buy(stats.instrumentSymbol, UUID.randomUUID().toString(), qty, bid);
         final var orderResponse = platform.buy(buyRequest);
         logger.info("order {} placed with response {}", buyRequest, orderResponse);
