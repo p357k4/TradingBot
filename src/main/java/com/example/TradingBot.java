@@ -1,6 +1,7 @@
 package com.example;
 
 import com.example.model.security.Credentials;
+import com.example.strategy.ThreeDaysTrend;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.slf4j.Logger;
@@ -26,7 +27,8 @@ public class TradingBot {
             final var credentials = objectMapper.readValue(credentialsResource, Credentials.class);
             final var marketPlugin = new HackathonPlatform(credentials);
 
-            final var ordersController = new OrdersController(marketPlugin);
+            final var ordersController = new ThreeDaysTrend(marketPlugin);
+//            final var ordersController = new OrdersController(marketPlugin);
 
             final var beeperHandle = scheduler.scheduleAtFixedRate(ordersController, 10, 60, SECONDS);
         } catch (Exception exception) {
