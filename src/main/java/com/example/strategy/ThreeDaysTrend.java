@@ -64,10 +64,10 @@ public record ThreeDaysTrend(Platform platform) implements Runnable {
     }
 
     private static void buy(Platform platform, PortfolioResponse.Portfolio portfolio, InstrumentsResponse.Instruments instruments) {
-        processInstruments(platform, instruments, ThreeDaysTrend::getOptionalBuyStats, e -> requestBuy(e, portfolio, platform));
+        processInstruments(platform, instruments, ThreeDaysTrend::calculateBuyStatistics, e -> requestBuy(e, portfolio, platform));
     }
     private static void sell(Platform platform, PortfolioResponse.Portfolio portfolio, InstrumentsResponse.Instruments instruments) {
-        processInstruments(platform, instruments, ThreeDaysTrend::getOptionalSellStats, e -> requestSell(e, portfolio, platform));
+        processInstruments(platform, instruments, ThreeDaysTrend::calculateSellStatistics, e -> requestSell(e, portfolio, platform));
     }
 
     private static void processInstruments(Platform platform,
@@ -77,7 +77,7 @@ public record ThreeDaysTrend(Platform platform) implements Runnable {
         instruments.available().stream()
                 .collect(Collectors.toMap(instrument -> instrument.symbol(), instrument -> platform.history(new HistoryRequest(instrument))))
                 .entrySet().stream()
-                .filter(e -> e.getValue() instanceof HistoryResponse.History)
+                .filter(instrumentSymbolTopriceHistoryResponse -> instrumentSymbolTopriceHistoryResponse.getValue() instanceof HistoryResponse.History)
                 .map(historyResponseMapper)
                 .filter(Optional::isPresent)
                 .map(Optional::get)
@@ -86,38 +86,38 @@ public record ThreeDaysTrend(Platform platform) implements Runnable {
                 .forEach(statsProcessor);
     }
 
-    private static Optional<Stats> getOptionalBuyStats(final Map.Entry<String, HistoryResponse> elem) {
-        return getOptionalStats(elem,
+    private static Optional<Stats> calculateBuyStatistics(final Map.Entry<String, HistoryResponse> elem) {
+        return calculateStatistics(elem,
                 averages -> averages.size() == 3 && (averages.get(0).average() > averages.get(1).average() && averages.get(1).average() > averages.get(2).average()) // process only if have three data points and trend was positive
         );
     }
-    private static Optional<Stats> getOptionalSellStats(final Map.Entry<String, HistoryResponse> elem) {
-        return getOptionalStats(elem,
+    private static Optional<Stats> calculateSellStatistics(final Map.Entry<String, HistoryResponse> elem) {
+        return calculateStatistics(elem,
                 averages -> averages.size() == 3 && (averages.get(0).average() < averages.get(1).average() && averages.get(1).average() < averages.get(2).average()) // process only if have three data points and trend was negative
         );
     }
-    private static Optional<Stats> getOptionalStats(Map.Entry<String, HistoryResponse> elem, Predicate<List<DayAverage>> isValidAverages) {
+    private static Optional<Stats> calculateStatistics(Map.Entry<String, HistoryResponse> instrumentSymbolToPriceHistory, Predicate<List<DayAverage>> isValidAverages) {
         // get stats from history.
         // stats: average price per day for three days
         // return only if found data for at least three days
-        HistoryResponse.History correct = (HistoryResponse.History) elem.getValue();
-        List<DayAverage> averages = correct.bought().stream()
-                .collect(Collectors.groupingBy(e -> LocalDate.ofInstant(e.created(), ZoneId.systemDefault())))
+        HistoryResponse.History priceHistory = (HistoryResponse.History) instrumentSymbolToPriceHistory.getValue();
+        List<DayAverage> averages = priceHistory.bought().stream()
+                .collect(Collectors.groupingBy(transactionData -> LocalDate.ofInstant(transactionData.created(), ZoneId.systemDefault())))
                 .entrySet().stream()
-                .collect(Collectors.toMap(e -> e.getKey(),
-                        e -> e.getValue().stream()
-                                .mapToLong(b -> b.offer().price())
+                .collect(Collectors.toMap(dateToTransactionList -> dateToTransactionList.getKey(),
+                        dateToTransactionList -> dateToTransactionList.getValue().stream()
+                                .mapToLong(transactionData -> transactionData.offer().price())
                                 .average())
                 )
                 .entrySet().stream()
-                .map(e -> new DayAverage(e.getKey(), e.getValue().orElse(0)))
+                .map(dateToOptionalAvgPrice -> new DayAverage(dateToOptionalAvgPrice.getKey(), dateToOptionalAvgPrice.getValue().orElse(0.)))
                 .sorted(Comparator.comparing(DayAverage::date).reversed())
                 .limit(3)
                 .collect(Collectors.toList());
         if (isValidAverages.test(averages)) {
             double delta = (averages.get(0).average() - averages.get(2).average()) / 2;
             long prediction = Math.round(averages.get(0).average() + delta);
-            return Optional.of(new Stats(elem.getKey(), prediction, delta, averages));
+            return Optional.of(new Stats(instrumentSymbolToPriceHistory.getKey(), prediction, delta, averages));
         }
         return Optional.empty();
     }
